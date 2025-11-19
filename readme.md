@@ -31,7 +31,7 @@ Karena proyek ini menggunakan arsitektur *Single File*, cara menjalankannya sang
 
 1.  **Clone** repository ini:
     ```bash
-    git clone [https://github.com/KiworaID/simustock-infinity.git](https://github.com/KiworaID/simustock-infinity.git)
+    git clone https://github.com/KiworaID/simustock-infinity.git
     ```
 2.  Buka file **`index.html`** menggunakan browser favorit kamu (Chrome, Edge, Firefox).
 3.  Selesai! Simulasi siap digunakan.
