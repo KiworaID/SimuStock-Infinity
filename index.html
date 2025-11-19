@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SimuStock: Infinity Market</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.1.0"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0f172a',
+                        lightbg: '#f8fafc',
+                        cardDark: '#1e293b',
+                        cardLight: '#ffffff',
+                        aiAccent: '#8b5cf6',
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        /* Core Layout Fixes */
+        body { font-family: 'Inter', sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; } 
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+
+        /* Animations */
+        .flash-green { animation: flashG 0.5s; color: #16a34a !important; }
+        .flash-red { animation: flashR 0.5s; color: #dc2626 !important; }
+        @keyframes flashG { 0% { background-color: rgba(34, 197, 94, 0.2); } 100% { background: transparent; } }
+        @keyframes flashR { 0% { background-color: rgba(239, 68, 68, 0.2); } 100% { background: transparent; } }
+
+        /* AI Box */
+        .ai-box {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(59, 130, 246, 0.05) 100%);
+            border-left: 4px solid #8b5cf6;
+        }
+        .dark .ai-box {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(15, 23, 42, 0.5) 100%);
+        }
+
+        /* Modal */
+        .modal-active { opacity: 1 !important; pointer-events: auto !important; }
+        .modal-content-active { transform: scale(1) !important; }
+    </style>
+</head>
+<body class="bg-lightbg dark:bg-darkbg text-slate-800 dark:text-slate-200 transition-colors duration-300">
+
+    <nav class="h-14 flex-none bg-cardLight dark:bg-cardDark border-b border-slate-200 dark:border-slate-700 px-4 flex justify-between items-center z-[60] shadow-sm">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <div class="bg-indigo-600 w-8 h-8 rounded flex items-center justify-center text-white shadow">
+                    <i class="fas fa-infinity"></i>
+                </div>
+                <h1 class="font-bold text-lg tracking-tight hidden md:block">SimuStock <span class="text-indigo-500">Infinity</span></h1>
+            </div>
+
+            <div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1 ml-2">
+                <button onclick="setSpeed(0)" id="spd-pause" class="w-8 h-7 rounded flex items-center justify-center text-xs hover:bg-white dark:hover:bg-slate-600 transition" title="Pause"><i class="fas fa-pause"></i></button>
+                <button onclick="setSpeed(2000)" id="spd-1x" class="w-8 h-7 rounded flex items-center justify-center text-xs font-bold bg-white dark:bg-slate-600 shadow text-blue-600 dark:text-blue-400" title="Normal Speed">1x</button>
+                <button onclick="setSpeed(500)" id="spd-fast" class="w-8 h-7 rounded flex items-center justify-center text-xs font-bold hover:bg-white dark:hover:bg-slate-600 transition text-slate-500" title="Fast Speed">Fast</button>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <button onclick="toggleAIMode()" id="btn-ai-mode" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-700 transition hover:bg-purple-200 dark:hover:bg-purple-900/50">
+                <i class="fas fa-robot text-lg"></i>
+                <span class="text-xs font-bold">AI Mentor: ON</span>
+            </button>
+
+            <div class="text-right leading-tight hidden sm:block">
+                <div class="text-[10px] text-slate-400 uppercase font-bold" data-key="totalAsset">Total Asset</div>
+                <div id="nav-asset" class="font-mono font-bold text-blue-600 dark:text-blue-400">0</div>
+            </div>
+
+            <div class="relative">
+                <button onclick="toggleSettings()" class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center transition">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <div id="settings-menu" class="hidden absolute right-0 top-12 w-56 bg-white dark:bg-cardDark border border-slate-200 dark:border-slate-600 rounded-xl shadow-2xl p-2 z-[100]">
+                    <div class="px-3 py-2 text-xs font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-700 mb-1" data-key="settings">Settings</div>
+                    <button onclick="toggleTheme()" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 text-sm flex justify-between items-center mb-1">
+                        <span data-key="theme">Theme Dark/Light</span> <i id="theme-icon" class="fas fa-moon"></i>
+                    </button>
+                    <button onclick="toggleLang()" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 text-sm flex justify-between items-center">
+                        <span data-key="language">Language</span> <span id="lang-badge" class="bg-blue-600 text-white text-[10px] px-1.5 rounded font-bold">EN</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="flex-1 flex overflow-hidden p-3 gap-3 bg-slate-50 dark:bg-slate-950 min-h-0">
+        
+        <aside class="w-64 flex-none flex flex-col bg-cardLight dark:bg-cardDark rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden hidden md:flex">
+            <div class="p-2 border-b border-slate-200 dark:border-slate-700 flex gap-1 flex-none">
+                <button onclick="filterRegion('ALL')" class="filter-btn active flex-1 py-1 text-[10px] font-bold rounded bg-blue-600 text-white">ALL</button>
+                <button onclick="filterRegion('ID')" class="filter-btn flex-1 py-1 text-[10px] font-bold rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">IDX</button>
+                <button onclick="filterRegion('US')" class="filter-btn flex-1 py-1 text-[10px] font-bold rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">US</button>
+            </div>
+            <div class="p-2 bg-slate-50 dark:bg-slate-800/50 flex-none">
+                <input type="text" id="search-input" placeholder="Search..." class="w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded px-2 py-1.5 text-xs outline-none focus:border-blue-500">
+            </div>
+            <div id="market-list" class="flex-1 overflow-y-auto p-1">
+                </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col min-w-0 gap-3 overflow-hidden">
+            <div class="flex-1 bg-cardLight dark:bg-cardDark rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 flex flex-col relative group min-h-0">
+                
+                <div id="ai-advisor-panel" class="ai-box mb-3 p-3 rounded-lg flex items-start gap-3 flex-none">
+                    <div class="bg-purple-100 dark:bg-purple-900/50 p-2 rounded-full flex-none text-purple-600 dark:text-purple-300 animate-pulse-slow">
+                        <i class="fas fa-robot text-xl"></i>
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="text-xs font-bold uppercase text-purple-600 dark:text-purple-400 mb-0.5 flex justify-between">
+                            <span>AI Market Analysis</span>
+                            <span id="ai-sentiment" class="bg-purple-600 text-white px-1.5 rounded text-[9px]">NEUTRAL</span>
+                        </h4>
+                        <p id="ai-message" class="text-sm font-medium text-slate-700 dark:text-slate-200 leading-tight truncate">
+                            Analyzing market data...
+                        </p>
+                    </div>
+                </div>
+
+                <div class="absolute top-20 right-4 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white dark:bg-cardDark p-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-lg">
+                    <button onclick="addDrawing('line')" class="w-8 h-8 rounded flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500" title="Add Line"><i class="fas fa-grip-lines"></i></button>
+                    <button onclick="clearDrawings()" class="w-8 h-8 rounded flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500" title="Clear"><i class="fas fa-trash"></i></button>
+                </div>
+
+                <div class="flex justify-between items-start flex-none mb-2">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 id="lbl-code" class="text-3xl font-bold">BBCA</h2>
+                            <span id="lbl-region" class="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-[10px] font-bold text-slate-500">ID</span>
+                        </div>
+                        <div id="lbl-name" class="text-sm text-slate-500">Bank Central Asia</div>
+                    </div>
+                    <div class="text-right">
+                        <div id="lbl-price" class="text-3xl font-mono font-bold">0</div>
+                        <div id="lbl-change" class="text-sm font-bold text-green-500">+0.00%</div>
+                        <div id="lbl-convert" class="text-[10px] text-slate-400 hidden">≈ Rp 0</div>
+                    </div>
+                </div>
+                
+                <div class="flex-1 w-full relative min-h-0 overflow-hidden">
+                    <canvas id="mainChart"></canvas>
+                </div>
+            </div>
+
+            <div class="h-20 flex-none bg-cardLight dark:bg-cardDark rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-2 grid grid-cols-4 gap-2 text-center">
+                 <div class="bg-slate-50 dark:bg-slate-800 p-1 rounded flex flex-col justify-center"><div class="text-[9px] text-slate-400">OPEN</div><div id="stat-open" class="font-mono text-xs font-bold">0</div></div>
+                 <div class="bg-slate-50 dark:bg-slate-800 p-1 rounded flex flex-col justify-center"><div class="text-[9px] text-slate-400">HIGH</div><div id="stat-high" class="font-mono text-xs font-bold text-green-500">0</div></div>
+                 <div class="bg-slate-50 dark:bg-slate-800 p-1 rounded flex flex-col justify-center"><div class="text-[9px] text-slate-400">LOW</div><div id="stat-low" class="font-mono text-xs font-bold text-red-500">0</div></div>
+                 <div class="bg-slate-50 dark:bg-slate-800 p-1 rounded flex flex-col justify-center"><div class="text-[9px] text-slate-400">VOL</div><div id="stat-vol" class="font-mono text-xs font-bold">0</div></div>
+            </div>
+        </main>
+
+        <aside class="w-72 flex-none flex flex-col gap-3 overflow-hidden">
+            <div class="bg-cardLight dark:bg-cardDark p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-md flex-none">
+                <div class="grid grid-cols-2 gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg mb-4">
+                    <button onclick="setTradeMode('buy')" id="tab-buy" class="py-2 text-xs font-bold rounded bg-green-600 text-white shadow transition" data-key="buy">BUY</button>
+                    <button onclick="setTradeMode('sell')" id="tab-sell" class="py-2 text-xs font-bold rounded text-slate-500 hover:text-slate-900 dark:hover:text-white transition" data-key="sell">SELL</button>
+                </div>
+
+                <div class="mb-4">
+                    <div class="flex justify-between text-xs mb-1 text-slate-500">
+                        <span data-key="quantity">Quantity (Lot)</span>
+                        <span id="max-lot" class="text-blue-500 cursor-pointer hover:underline" onclick="setMax()">Max: 0</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="adjLot(-1)" class="w-8 h-10 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 font-bold">-</button>
+                        <input type="number" id="inp-lot" value="1" min="1" class="flex-1 bg-transparent border border-slate-200 dark:border-slate-600 rounded h-10 text-center font-mono font-bold focus:border-blue-500 outline-none" oninput="calcTotal()">
+                        <button onclick="adjLot(1)" class="w-8 h-10 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 font-bold">+</button>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 dark:bg-slate-900/50 p-3 rounded border border-slate-100 dark:border-slate-800 mb-4">
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-slate-500" data-key="cash">Cash</span>
+                        <span id="wallet-cash" class="font-mono font-bold">0</span>
+                    </div>
+                    <div class="flex justify-between text-sm items-center border-t border-slate-200 dark:border-slate-700 pt-2 mt-2">
+                        <span class="font-bold text-slate-500" data-key="total">Total</span>
+                        <span id="trade-total" class="font-mono font-bold text-lg">0</span>
+                    </div>
+                </div>
+
+                <button onclick="executeTrade()" id="btn-action" class="w-full py-3 rounded-xl bg-green-600 hover:bg-green-500 text-white font-bold shadow-lg shadow-green-900/20 transition active:scale-95" data-key="confirmBuy">
+                    CONFIRM BUY
+                </button>
+            </div>
+
+            <div class="flex-1 bg-cardLight dark:bg-cardDark rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col overflow-hidden min-h-0">
+                <div class="p-3 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/30 flex-none">
+                    <span class="text-xs font-bold uppercase text-slate-500" data-key="portfolio">Portfolio</span>
+                    <span id="port-pl" class="text-xs font-bold text-slate-400">0%</span>
+                </div>
+                <div id="port-list" class="flex-1 overflow-y-auto p-2 space-y-2">
+                    <div class="text-center text-slate-400 text-xs mt-10 italic" data-key="empty">No assets</div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <footer class="flex-none py-2 px-6 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex flex-col md:flex-row justify-between items-center gap-2 z-50 text-xs font-medium transition-colors duration-300">
+        <div class="text-slate-500 dark:text-slate-400 flex items-center gap-2">
+            <span>&copy; 2025 SimuStock Infinity</span>
+            <span class="hidden md:inline text-slate-300 dark:text-slate-700">•</span>
+            <span class="hidden md:inline text-slate-400">Market AI Edition</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+            <span class="text-slate-500">Developed by</span>
+            <a href="https://github.com/KiworaID" target="_blank" class="group flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-slate-200 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300">
+                <div class="w-1.5 h-1.5 rounded-full bg-blue-500 group-hover:animate-pulse"></div>
+                <span class="font-bold text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400">KiworaID</span>
+            </a>
+        </div>
+    </footer>
+
+    <div id="custom-modal" class="fixed inset-0 z-[999] hidden flex items-center justify-center bg-black/60 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-2xl transform scale-90 transition-transform duration-300 w-80 text-center border border-slate-200 dark:border-slate-700" id="modal-content">
+            <div id="modal-icon" class="text-5xl mb-3"></div>
+            <h3 id="modal-title" class="text-xl font-bold mb-2 dark:text-white"></h3>
+            <p id="modal-msg" class="text-sm text-slate-500 dark:text-slate-400 mb-6"></p>
+            <button onclick="closeModal()" class="w-full py-2 rounded-xl font-bold bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 transition dark:text-white">OK</button>
+        </div>
+    </div>
+
+    <script>
+        const LANG = {
+            en: { confirmBuy: "CONFIRM BUY", confirmSell: "CONFIRM SELL", empty: "No assets owned", alertBuy: "Bought", alertSell: "Sold", success: "Success", error: "Failed", errCash: "Insufficient Cash!", errLot: "Insufficient Lots!", ai_buy: "Good time to accumulate! Price is at support level.", ai_sell: "Price is overbought. Consider taking profit.", ai_hold_loss: "Don't panic sell. Price is dipping, you can average down.", ai_hold_profit: "You are in profit. Let profits run or take partials.", ai_neutral: "Market is sideways. Wait for clear trend.", ai_downtrend: "Strong downtrend detected. Do not catch falling knife." },
+            id: { confirmBuy: "KONFIRMASI BELI", confirmSell: "KONFIRMASI JUAL", empty: "Belum ada aset", alertBuy: "Berhasil Beli", alertSell: "Berhasil Jual", success: "Berhasil", error: "Gagal", errCash: "Saldo Tidak Cukup!", errLot: "Lot Tidak Cukup!", ai_buy: "Waktu bagus untuk beli! Harga sedang diskon (Support).", ai_sell: "Harga sudah ketinggian (Overbought). Awas nyangkut!", ai_hold_loss: "Jangan panik jual! Harga cuma koreksi, bisa beli lagi (Avg Down).", ai_hold_profit: "Cuan mantap! Bisa jual sebagian atau tahan dulu.", ai_neutral: "Pasar membosankan (Sideways). Tunggu sinyal.", ai_downtrend: "Tren turun tajam! Jangan tangkap pisau jatuh." }
+        };
+
+        const STOCKS = [
+            { code: 'BBCA', name: 'Bank Central Asia', region: 'ID', cur: 'IDR', price: 9250, vol: 0.003 },
+            { code: 'BBRI', name: 'Bank Rakyat Indonesia', region: 'ID', cur: 'IDR', price: 5450, vol: 0.004 },
+            { code: 'TLKM', name: 'Telkom Indonesia', region: 'ID', cur: 'IDR', price: 3780, vol: 0.005 },
+            { code: 'GOTO', name: 'GoTo Gojek Tokopedia', region: 'ID', cur: 'IDR', price: 88, vol: 0.02 },
+            { code: 'AAPL', name: 'Apple Inc.', region: 'US', cur: 'USD', price: 178.35, vol: 0.008 },
+            { code: 'TSLA', name: 'Tesla Inc.', region: 'US', cur: 'USD', price: 245.50, vol: 0.015 },
+            { code: 'NVDA', name: 'NVIDIA Corp', region: 'US', cur: 'USD', price: 480.20, vol: 0.012 },
+            { code: 'MSFT', name: 'Microsoft Corp', region: 'US', cur: 'USD', price: 370.10, vol: 0.009 },
+            { code: 'AMZN', name: 'Amazon.com Inc.', region: 'US', cur: 'USD', price: 145.25, vol: 0.011 },
+            { code: 'GOOGL', name: 'Alphabet Inc.', region: 'US', cur: 'USD', price: 138.40, vol: 0.010 },
+            { code: 'META', name: 'Meta Platforms', region: 'US', cur: 'USD', price: 330.55, vol: 0.014 },
+            { code: 'NFLX', name: 'Netflix Inc.', region: 'US', cur: 'USD', price: 475.80, vol: 0.013 }
+        ];
+        
+        const RATES = { IDR: 1, USD: 15500, EUR: 16800 };
+        
+        let app = { lang: 'en', cash: 100000000, portfolio: {}, active: 'BBCA', mode: 'buy', filter: 'ALL', history: {}, annotations: {}, buyTraces: {}, speed: 2000, timer: null, aiEnabled: true };
+        let chart;
+
+        function init() {
+            STOCKS.forEach(s => {
+                app.history[s.code] = []; app.annotations[s.code] = []; app.buyTraces[s.code] = [];
+                let p = s.price;
+                // Backtrack history generation to prevent drift to 0
+                for(let i=0; i<50; i++) { 
+                    app.history[s.code].unshift(p); 
+                    // Reverse math: if today is P, yesterday was P / (1+change)
+                    let change = (Math.random()-0.5)*s.vol*2;
+                    p = p / (1 + change);
+                }
+                s.open = app.history[s.code][0]; 
+                updateStats(s);
+            });
+            initChart(); renderMarket(); selectStock('BBCA'); updateLang(); updateUI(); setSpeed(2000);
+            document.addEventListener('click', (e) => { const m = document.getElementById('settings-menu'); if(!m.parentElement.contains(e.target)) m.classList.add('hidden'); });
+        }
+
+        function setSpeed(ms) {
+            clearInterval(app.timer); app.speed = ms;
+            ['spd-pause','spd-1x','spd-fast'].forEach(id => { document.getElementById(id).className = "w-8 h-7 rounded flex items-center justify-center text-xs font-bold hover:bg-white dark:hover:bg-slate-600 transition text-slate-500"; });
+            let activeBtn = ms===2000 ? 'spd-1x' : (ms===500 ? 'spd-fast' : 'spd-pause');
+            document.getElementById(activeBtn).className = "w-8 h-7 rounded flex items-center justify-center text-xs font-bold bg-white dark:bg-slate-600 shadow text-blue-600 dark:text-blue-400";
+            if(ms > 0) app.timer = setInterval(updateMarket, ms);
+        }
+
+        function updateMarket() {
+            STOCKS.forEach(s => {
+                s.prev = s.price; 
+                let move = (Math.random() - 0.5) * 2 * s.vol;
+                
+                // BUG FIX: For IDR use floor/integer, for USD allow decimals. Prevents crash to 0.
+                let rawNewPrice = s.price * (1 + move);
+                if (s.cur === 'IDR') {
+                     s.price = Math.max(1, Math.floor(rawNewPrice));
+                } else {
+                     s.price = Math.max(0.01, Number(rawNewPrice.toFixed(2))); // Allow cents
+                }
+
+                app.history[s.code].push(s.price); if(app.history[s.code].length > 60) app.history[s.code].shift();
+                updateStats(s);
+                
+                // Quick list update
+                const el = document.getElementById(`price-${s.code}`);
+                if(el) {
+                    el.innerText = fmt(s.price, s.cur);
+                    el.className = s.price > s.prev ? "font-mono text-sm font-bold flash-green" : (s.price < s.prev ? "font-mono text-sm font-bold flash-red" : "font-mono text-sm font-bold");
+                    const chg = ((s.price - s.open)/s.open)*100;
+                    const elChg = document.getElementById(`chg-${s.code}`);
+                    elChg.innerText = `${chg>=0?'+':''}${chg.toFixed(2)}%`;
+                    elChg.className = `text-[10px] ${chg>=0?'text-green-500':'text-red-500'}`;
+                }
+            });
+            updateActiveDetail();
+        }
+
+        function updateStats(s) {
+             if(s.price > s.high || !s.high) s.high = s.price; 
+             if(s.price < s.low || !s.low) s.low = s.price;
+        }
+
+        function analyzeMarket(s) {
+            if(!app.aiEnabled) return;
+            const current = s.price; const high = s.high; const low = s.low; const range = high - low;
+            const pos = range === 0 ? 0.5 : (current - low) / range; 
+            const history = app.history[s.code]; const prev10 = history[history.length - 10] || current;
+            const trend = current > prev10;
+            const p = app.portfolio[s.code]; let plPct = 0; if(p) plPct = ((current - p.avgPrice) / p.avgPrice) * 100;
+            const t = LANG[app.lang];
+
+            if(p && plPct < -3) updateAIUI("HOLD/BUY", "bg-yellow-500", t.ai_hold_loss);
+            else if(p && plPct > 5) updateAIUI("TAKE PROFIT", "bg-green-500", t.ai_hold_profit);
+            else if(pos > 0.9) updateAIUI("SELL/WAIT", "bg-red-500", t.ai_sell);
+            else if(pos < 0.15) updateAIUI("STRONG BUY", "bg-green-600", t.ai_buy);
+            else if(!trend && pos < 0.4) updateAIUI("DOWNTREND", "bg-red-600", t.ai_downtrend);
+            else updateAIUI("NEUTRAL", "bg-slate-500", t.ai_neutral);
+        }
+
+        function updateAIUI(badge, colorClass, msg) {
+            const elSent = document.getElementById('ai-sentiment'); elSent.innerText = badge; elSent.className = `${colorClass} text-white px-1.5 rounded text-[9px]`;
+            document.getElementById('ai-message').innerText = msg;
+        }
+
+        function toggleAIMode() {
+            app.aiEnabled = !app.aiEnabled;
+            const btn = document.getElementById('btn-ai-mode'); const panel = document.getElementById('ai-advisor-panel');
+            if(app.aiEnabled) {
+                btn.innerHTML = `<i class="fas fa-robot text-lg"></i> <span class="text-xs font-bold">AI Mentor: ON</span>`;
+                btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-700 transition";
+                panel.classList.remove('hidden');
+            } else {
+                btn.innerHTML = `<i class="fas fa-robot text-lg"></i> <span class="text-xs font-bold">AI Mentor: OFF</span>`;
+                btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700 transition";
+                panel.classList.add('hidden');
+            }
+            updateActiveDetail();
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: Array(50).fill(''), datasets: [{ data: [], borderWidth: 2, pointRadius: 0, fill: true, tension: 0.4 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: {display:false}, annotation: { annotations: {} } }, scales: { x: {display:false}, y: {display:true, position:'right', grid:{color:'#33415533'}, border:{display:false}} }, animation: false }
+            });
+        }
+
+        function updateActiveDetail() {
+            const s = STOCKS.find(x => x.code === app.active); if(!s) return;
+            document.getElementById('lbl-code').innerText = s.code; document.getElementById('lbl-name').innerText = s.name; document.getElementById('lbl-region').innerText = s.region; document.getElementById('lbl-price').innerText = fmt(s.price, s.cur);
+            const chg = ((s.price - s.open)/s.open)*100;
+            const elChg = document.getElementById('lbl-change'); elChg.innerText = `${chg>=0?'+':''}${chg.toFixed(2)}%`; elChg.className = `text-sm font-bold ${chg>=0?'text-green-500':'text-red-500'}`;
+            document.getElementById('lbl-convert').style.display = s.cur !== 'IDR' ? 'block' : 'none'; document.getElementById('lbl-convert').innerText = `≈ ${fmt(s.price*RATES[s.cur], 'IDR')}`;
+            analyzeMarket(s);
+            const color = chg >= 0 ? '#22c55e' : '#ef4444';
+            chart.data.datasets[0].data = app.history[s.code]; chart.data.datasets[0].borderColor = color;
+            chart.data.datasets[0].backgroundColor = (ctx) => { const grad = ctx.chart.ctx.createLinearGradient(0,0,0,300); grad.addColorStop(0, color+'33'); grad.addColorStop(1, color+'00'); return grad; };
+            chart.options.plugins.annotation.annotations = getAnnotations(s.code); chart.update('none');
+            document.getElementById('stat-open').innerText = fmt(s.open, s.cur); document.getElementById('stat-high').innerText = fmt(s.high, s.cur); document.getElementById('stat-low').innerText = fmt(s.low, s.cur); document.getElementById('stat-vol').innerText = (Math.random()*50+10).toFixed(1)+'K';
+            calcTotal();
+        }
+
+        function getAnnotations(code) {
+            const ans = {}; let c = 0;
+            app.annotations[code].forEach(v => { ans[`l${c++}`] = { type: 'line', yMin: v, yMax: v, borderColor: '#3b82f6', borderWidth: 2, borderDash: [5,5] }; });
+            app.buyTraces[code].forEach(v => { ans[`b${c++}`] = { type: 'line', yMin: v, yMax: v, borderColor: '#22c55e', borderWidth: 1, label: {display:true, content:'BUY', backgroundColor:'#22c55e', font:{size:9}} }; });
+            return ans;
+        }
+
+        function addDrawing(type) { if(type === 'line') { const s = STOCKS.find(x => x.code === app.active); app.annotations[app.active].push(s.price); updateActiveDetail(); showModal(true, "Line Added!"); } }
+        function clearDrawings() { app.annotations[app.active] = []; updateActiveDetail(); }
+
+        function executeTrade() {
+            const lot = parseInt(document.getElementById('inp-lot').value) || 0; if(lot <= 0) return;
+            const s = STOCKS.find(x => x.code === app.active); const val = s.price * 100 * lot * RATES[s.cur]; const t = LANG[app.lang];
+            let success = false, msg = "";
+            if(app.mode === 'buy') {
+                if(app.cash >= val) {
+                    app.cash -= val; if(!app.portfolio[s.code]) app.portfolio[s.code] = { lots: 0, avgPrice: 0 };
+                    let p = app.portfolio[s.code]; let oldVal = p.lots * 100 * p.avgPrice; let buyVal = lot * 100 * s.price;
+                    p.lots += lot; p.avgPrice = (oldVal + buyVal) / (p.lots * 100); app.buyTraces[s.code].push(s.price);
+                    success = true; msg = `${t.alertBuy} ${lot} Lot ${s.code}`;
+                } else { msg = t.errCash; }
+            } else {
+                const p = app.portfolio[s.code];
+                if(p && p.lots >= lot) {
+                    app.cash += val; p.lots -= lot; if(p.lots === 0) delete app.portfolio[s.code];
+                    success = true; msg = `${t.alertSell} ${lot} Lot ${s.code}`;
+                } else { msg = t.errLot; }
+            }
+            updateUI(); updateActiveDetail(); showModal(success, msg);
+        }
+
+        function updateUI() {
+            const list = document.getElementById('port-list'); list.innerHTML = ''; let stockVal = 0; const keys = Object.keys(app.portfolio);
+            if(keys.length === 0) list.innerHTML = `<div class="text-center text-slate-400 text-xs mt-10 italic" data-key="empty">${LANG[app.lang].empty}</div>`;
+            keys.forEach(k => {
+                const p = app.portfolio[k]; const s = STOCKS.find(x => x.code === k);
+                const mVal = s.price * 100 * p.lots; const cVal = p.avgPrice * 100 * p.lots;
+                const pl = mVal - cVal; const plPct = (pl/cVal)*100;
+                stockVal += (mVal * RATES[s.cur]);
+                list.innerHTML += `<div onclick="selectStock('${k}')" class="cursor-pointer p-2 border border-slate-200 dark:border-slate-700 rounded mb-1 hover:bg-slate-50 dark:hover:bg-slate-800"><div class="flex justify-between"><span class="font-bold text-sm">${k}</span><span class="text-[10px] font-bold bg-slate-200 dark:bg-slate-700 px-1 rounded pt-0.5">${p.lots} Lot</span></div><div class="flex justify-between text-xs mt-1"><span class="text-slate-500">Avg: ${fmt(p.avgPrice, s.cur, true)}</span><span class="font-bold ${pl>=0?'text-green-500':'text-red-500'}">${pl>=0?'+':''}${plPct.toFixed(1)}%</span></div></div>`;
+            });
+            const total = app.cash + stockVal; document.getElementById('nav-asset').innerText = fmt(total, 'IDR');
+            const globalPL = total - 100000000; const globalPct = (globalPL/100000000)*100;
+            const elPL = document.getElementById('port-pl'); elPL.innerText = `${globalPL>=0?'+':''}${globalPct.toFixed(2)}%`; elPL.className = `text-xs font-bold ${globalPL>=0?'text-green-500':'text-red-500'}`;
+        }
+
+        function renderMarket() {
+            const list = document.getElementById('market-list'); list.innerHTML = '';
+            const term = document.getElementById('search-input').value.toLowerCase();
+            const filtered = STOCKS.filter(s => (app.filter === 'ALL' || s.region === app.filter) && (s.code.toLowerCase().includes(term) || s.name.toLowerCase().includes(term)));
+            filtered.forEach(s => {
+                const active = s.code === app.active ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500' : 'hover:bg-slate-100 dark:hover:bg-slate-800 border-transparent';
+                list.innerHTML += `<div onclick="selectStock('${s.code}')" class="cursor-pointer p-2 mb-1 rounded border-l-4 transition ${active}"><div class="flex justify-between items-center"><div><div class="flex items-center gap-2"><span class="font-bold text-sm">${s.code}</span><span class="text-[9px] bg-slate-200 dark:bg-slate-700 px-1 rounded text-slate-500">${s.region}</span></div><div class="text-[10px] text-slate-400 truncate w-24">${s.name}</div></div><div class="text-right"><div id="price-${s.code}" class="font-mono text-sm font-bold">${fmt(s.price, s.cur)}</div><div id="chg-${s.code}" class="text-[10px] text-slate-400">0.00%</div></div></div></div>`;
+            });
+        }
+        function selectStock(code) { app.active = code; renderMarket(); updateActiveDetail(); calcTotal(); }
+        function setTradeMode(m) {
+            app.mode = m; const t = LANG[app.lang];
+            if(m === 'buy') { document.getElementById('tab-buy').className = "py-2 text-xs font-bold rounded bg-green-600 text-white shadow"; document.getElementById('tab-sell').className = "py-2 text-xs font-bold rounded text-slate-500 hover:text-slate-900 dark:hover:text-white"; document.getElementById('btn-action').className = "w-full py-3 rounded-xl bg-green-600 hover:bg-green-500 text-white font-bold shadow-lg shadow-green-900/20 active:scale-95 transition"; }
+            else { document.getElementById('tab-sell').className = "py-2 text-xs font-bold rounded bg-red-600 text-white shadow"; document.getElementById('tab-buy').className = "py-2 text-xs font-bold rounded text-slate-500 hover:text-slate-900 dark:hover:text-white"; document.getElementById('btn-action').className = "w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold shadow-lg shadow-red-900/20 active:scale-95 transition"; }
+            updateLang(); calcTotal();
+        }
+        function calcTotal() {
+            const lot = parseInt(document.getElementById('inp-lot').value) || 0; const s = STOCKS.find(x => x.code === app.active); const totalIDR = s.price * 100 * lot * RATES[s.cur];
+            document.getElementById('trade-total').innerText = fmt(totalIDR, 'IDR'); document.getElementById('wallet-cash').innerText = fmt(app.cash, 'IDR');
+            if(app.mode === 'buy') document.getElementById('max-lot').innerText = `Max: ${Math.floor(app.cash / (s.price*100*RATES[s.cur]))}`;
+            else { const p = app.portfolio[s.code]; document.getElementById('max-lot').innerText = `Max: ${p ? p.lots : 0}`; }
+        }
+        function adjLot(n) { const el = document.getElementById('inp-lot'); let v = parseInt(el.value) + n; if(v < 1) v = 1; el.value = v; calcTotal(); }
+        function setMax() {
+            const s = STOCKS.find(x => x.code === app.active);
+            if(app.mode === 'buy') document.getElementById('inp-lot').value = Math.max(1, Math.floor(app.cash / (s.price*100*RATES[s.cur])));
+            else { const p = app.portfolio[s.code]; document.getElementById('inp-lot').value = p ? p.lots : 1; }
+            calcTotal();
+        }
+        function showModal(success, msg) {
+            const modal = document.getElementById('custom-modal'); const icon = document.getElementById('modal-icon'); const title = document.getElementById('modal-title'); const body = document.getElementById('modal-msg'); const t = LANG[app.lang];
+            modal.classList.remove('hidden'); setTimeout(() => { modal.classList.add('modal-active'); document.getElementById('modal-content').classList.add('modal-content-active'); }, 10);
+            if(success) { icon.innerHTML = '<i class="fas fa-check-circle text-green-500"></i>'; title.innerText = t.success; } else { icon.innerHTML = '<i class="fas fa-times-circle text-red-500"></i>'; title.innerText = t.error; }
+            body.innerText = msg;
+        }
+        function closeModal() { const modal = document.getElementById('custom-modal'); modal.classList.remove('modal-active'); setTimeout(() => { modal.classList.add('hidden'); }, 300); }
+        function toggleLang() { app.lang = app.lang === 'en' ? 'id' : 'en'; updateLang(); }
+        function updateLang() {
+            const t = LANG[app.lang]; document.getElementById('lang-badge').innerText = app.lang.toUpperCase();
+            document.querySelectorAll('[data-key]').forEach(el => { const key = el.getAttribute('data-key'); if(t[key]) el.innerText = t[key]; });
+            document.getElementById('search-input').placeholder = app.lang === 'en' ? "Search..." : "Cari emiten...";
+            const btnAction = document.getElementById('btn-action'); btnAction.innerText = app.mode === 'buy' ? t.confirmBuy : t.confirmSell; updateActiveDetail();
+        }
+        function toggleTheme() { document.documentElement.classList.toggle('dark'); }
+        function filterRegion(r) {
+            app.filter = r; document.querySelectorAll('.filter-btn').forEach(b => { b.className = (b.innerText === r || (r==='ALL' && b.innerText==='ALL') || (r==='ID' && b.innerText==='IDX')) ? "filter-btn active flex-1 py-1 text-[10px] font-bold rounded bg-blue-600 text-white" : "filter-btn flex-1 py-1 text-[10px] font-bold rounded text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"; });
+            renderMarket();
+        }
+        function toggleSettings() { document.getElementById('settings-menu').classList.toggle('hidden'); }
+        
+        // FIX: Updated formatter to support decimals for USD/EUR but keep integer for IDR
+        function fmt(val, cur, compact) { 
+            if(compact) return val.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:2}); 
+            let maxD = (cur === 'USD' || cur === 'EUR') ? 2 : 0;
+            return new Intl.NumberFormat(app.lang==='id'?'id-ID':'en-US', {style: cur?'currency':'decimal', currency: cur||'IDR', minimumFractionDigits: maxD, maximumFractionDigits: maxD}).format(val); 
+        }
+
+        document.getElementById('search-input').addEventListener('input', renderMarket);
+        init();
+    </script>
+</body>
+</html>
