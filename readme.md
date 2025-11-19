@@ -5,7 +5,7 @@
 SimuStock Infinity adalah simulasi pasar saham berbasis web yang ringan, modern, dan interaktif. Dibangun hanya dalam satu file HTML tunggal, proyek ini menggabungkan simulasi harga real-time, charting interaktif, dan analisis AI sederhana untuk membantu pengguna belajar trading tanpa risiko.
 
 ![SimuStock Dashboard Preview](./public/screenshot.png)
-> *Tampilan Dashboard SimuStock Infinity (Dark Mode)*
+> *Tampilan Dashboard SimuStock Infinity (Light Mode)*
 
 ## ✨ Fitur Utama
 
